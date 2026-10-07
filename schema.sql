@@ -47,3 +47,16 @@ create table settings (
 );
 alter table settings enable row level security;
 create policy own on settings for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+
+create table debts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  direction text not null check (direction in ('owed_to_me','i_owe')),
+  person text not null,
+  amount numeric(12,2) not null check (amount > 0),
+  note text,
+  created_at timestamptz not null default now()
+);
+alter table debts enable row level security;
+create policy own on debts for all using (user_id = auth.uid()) with check (user_id = auth.uid());
