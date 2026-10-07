@@ -37,3 +37,13 @@ alter table keeper_moves enable row level security;
 create policy own on categories   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy own on entries      for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy own on keeper_moves for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+
+
+create table settings (
+  user_id uuid primary key default auth.uid() references auth.users(id) on delete cascade,
+  monthly_cap numeric(12,2),
+  warn80 boolean not null default true
+);
+alter table settings enable row level security;
+create policy own on settings for all using (user_id = auth.uid()) with check (user_id = auth.uid());
