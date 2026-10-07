@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Expense Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#eef2f4;--card:#fff;--tx:#0f1f2a;--mu:#6b7a86;--ac:#3d4fd6;--in:#1f8a5b;--out:#c8442f;--bd:#dbe2e7;--keep:#0f1f2a;--keeptx:#fff}
+@media(prefers-color-scheme:dark){:root{--bg:#0e151b;--card:#18222b;--tx:#e8eef2;--mu:#8a99a5;--ac:#8c9aff;--in:#5fd39a;--out:#ff8a76;--bd:#2a3742;--keep:#23323f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 Figtree,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+main{max-width:640px;margin:auto;padding:16px 16px 100px}
+[hidden]{display:none!important}
+button,input,select{font:inherit;color:inherit}
+input,select{width:100%;padding:11px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--card)}
+label{display:block;font-size:14px;color:var(--mu);margin:12px 0 4px}
+.btn{border:0;border-radius:8px;padding:12px 16px;background:var(--ac);color:#fff;font-weight:600;cursor:pointer}
+.btn.alt{background:transparent;color:var(--tx);border:1px solid var(--bd)}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.top h1{font-size:20px;margin:0}
+.link{background:none;border:0;color:var(--mu);cursor:pointer}
+.bal{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.box{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px}
+.box small,.keep small{color:var(--mu);display:block}
+.box b{font-size:24px}
+.keep{grid-column:1/-1;background:var(--keep);color:var(--keeptx);border-radius:12px;padding:14px;display:flex;justify-content:space-between;align-items:center}
+.keep small{color:inherit;opacity:.7}.keep b{font-size:24px}
+.tabs{display:flex;gap:6px;margin:18px 0 10px}
+.tabs button{flex:1;padding:10px;border:1px solid var(--bd);border-radius:8px;background:transparent;cursor:pointer;font-weight:600}
+.tabs button.on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.row{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--bd)}
+.row small{display:block;color:var(--mu)}
+.acts button{background:none;border:0;cursor:pointer;font-size:16px;padding:4px}
+.fab{position:fixed;bottom:16px;left:0;right:0;display:flex;gap:10px;justify-content:center;padding:0 16px}
+.fab .btn{box-shadow:0 4px 14px #0003;flex:1;max-width:240px}
+dialog{border:0;border-radius:14px;padding:18px;width:min(92vw,420px);background:var(--card);color:var(--tx)}
+dialog::backdrop{background:#0008}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pie{width:180px;height:180px;border-radius:50%;margin:16px auto}
+.leg{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd)}
+.leg i{width:12px;height:12px;border-radius:3px}.leg span{flex:1}
+.empty{color:var(--mu);text-align:center;padding:28px 0}
+</style></head><body>
+<main>
+<section id="login" hidden>
+  <h1>Expense Tracker</h1>
+  <label>Email</label><input id="em" type="email" autocomplete="username">
+  <label>Password</label><input id="pw" type="password" autocomplete="current-password">
+  <p><button class="btn" id="go">Sign in</button></p>
+</section>
+
+<section id="app" hidden>
+  <div class="top"><h1>Expense Tracker</h1><button class="link" id="out">Sign out</button></div>
+  <div class="bal">
+    <div class="box"><small>Cash</small><b id="b-cash"></b></div>
+    <div class="box"><small>FamPay</small><b id="b-fam"></b></div>
+    <div class="keep"><div><small>Keeper</small><b id="b-keep"></b></div></div>
+  </div>
+  <div class="tabs"><button data-v="v1" class="on">Entries</button><button data-v="v2">Summary</button></div>
+
+  <div id="v1"><div id="list"></div><p style="text-align:center"><button class="btn alt" id="more" hidden>Show more</button></p></div>
+
+  <div id="v2" hidden>
+    <div class="tabs" id="rng" style="margin-top:0"><button data-r="week">This week</button><button data-r="month" class="on">This month</button><button data-r="all">All time</button></div>
+    <div id="sum"></div>
+  </div>
+</section>
+</main>
+
+<div class="fab" id="fab" hidden>
+  <button class="btn" id="add">+ Entry</button>
+  <button class="btn alt" style="background:var(--card)" id="kp">Keeper</button>
+</div>
+
+<dialog id="ed"><form id="ef">
+  <h2 id="et" style="margin:0">Add entry</h2>
+  <div class="two">
+    <div><label>Type</label><select id="f-type"><option value="out">Money out</option><option value="in">Money in</option></select></div>
+    <div><label>Mode</label><select id="f-mode"><option value="cash">Cash</option><option value="fampay">FamPay</option></select></div>
+  </div>
+  <label>Amount (₹)</label><input id="f-amt" type="number" step="0.01" min="0.01" required inputmode="decimal">
+  <div id="catw"><label>Category</label><select id="f-cat"></select></div>
+  <div class="two">
+    <div><label>Date</label><input id="f-date" type="date" required></div>
+    <div><label>Note</label><input id="f-note"></div>
+  </div>
+  <p class="two"><button type="button" class="btn alt" data-close>Cancel</button><button class="btn">Save</button></p>
+</form></dialog>
+
+<dialog id="kd"><form id="kf">
+  <h2 id="kt" style="margin:0">Keeper</h2>
+  <label>Action</label><select id="k-dir"><option value="to_keeper">Put into keeper (from FamPay)</option><option value="from_keeper">Take out of keeper (to FamPay)</option></select>
+  <label>Amount (₹)</label><input id="k-amt" type="number" step="0.01" min="0.01" required inputmode="decimal">
+  <div class="two">
+    <div><label>Date</label><input id="k-date" type="date" required></div>
+    <div><label>Note</label><input id="k-note"></div>
+  </div>
+  <p class="two"><button type="button" class="btn alt" data-close>Cancel</button><button class="btn">Save</button></p>
+</form></dialog>
+
+<script>
+const SUPA_URL = 'https://gmhkyiwvhmiuuopsdkhz.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdtaGt5aXd2aG1pdXVvcHNka2h6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzOTA4OTQsImV4cCI6MjEwNjk2Njg5NH0.RR_NTAqmmTFsarblrqIldSZXG4Ci-9EX6uybaWW7OZ4';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+const $ = id => document.getElementById(id);
+const fmt = n => (n < 0 ? '-₹' : '₹') + Math.abs(n).toLocaleString('en-IN', {maximumFractionDigits: 2});
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ds = d => new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+const today = () => ds(new Date());
+const COLORS = ['#3d4fd6','#e07a2f','#1f8a5b','#c8442f','#8e5bd0','#2a9bb5','#c9a227','#d0577f','#6b7a86'];
+let entries = [], moves = [], cats = [], range = 'month', editing = null, lim = 50;
+
+async function all(t, o) {
+  let r = [], i = 0;
+  for (;;) {
+    const {data, error} = await sb.from(t).select('*').order(o, {ascending: false}).order('id').range(i, i + 999);
+    if (error) { alert(error.message); break; }
+    r = r.concat(data);
+    if (data.length < 1000) break;
+    i += 1000;
+  }
+  return r;
+}
+
+async function load() {
+  [entries, moves, cats] = await Promise.all([all('entries', 'entry_date'), all('keeper_moves', 'move_date'), all('categories', 'name')]);
+  if (!cats.length) {
+    await sb.from('categories').insert(['Food','Travel','Fun','Essentials','Other'].map(name => ({name})));
+    cats = await all('categories', 'name');
+  }
+  render();
+}
+
+function render() {
+  let cash = 0, fam = 0, keep = 0;
+  entries.forEach(e => { const s = e.type === 'in' ? 1 : -1; if (e.mode === 'cash') cash += s * +e.amount; else fam += s * +e.amount; });
+  moves.forEach(m => { const a = +m.amount; if (m.direction === 'to_keeper') { fam -= a; keep += a; } else { fam += a; keep -= a; } });
+  $('b-cash').textContent = fmt(cash); $('b-fam').textContent = fmt(fam); $('b-keep').textContent = fmt(keep);
+
+  const items = entries.map(e => ({...e, k: 'e', d: e.entry_date}))
+    .concat(moves.map(m => ({...m, k: 'm', d: m.move_date})))
+    .sort((a, b) => b.d.localeCompare(a.d) || b.created_at.localeCompare(a.created_at));
+  $('list').innerHTML = items.length ? items.slice(0, lim).map(x => {
+    const e = x.k === 'e';
+    const title = e ? esc(x.category || (x.type === 'in' ? 'Income' : 'Uncategorised')) : (x.direction === 'to_keeper' ? 'To keeper' : 'From keeper');
+    const mode = e ? (x.mode === 'cash' ? 'Cash' : 'FamPay') : 'FamPay';
+    const col = e ? (x.type === 'in' ? 'var(--in)' : 'var(--out)') : 'var(--tx)';
+    const sign = e ? (x.type === 'in' ? '+' : '-') : '';
+    return `<div class="row"><div><b>${title}</b><small>${x.d} · ${mode}${x.note ? ' · ' + esc(x.note) : ''}</small></div>
+      <b style="color:${col}">${sign}${fmt(+x.amount)}</b>
+      <div class="acts"><button data-a="edit" data-k="${x.k}" data-id="${x.id}" aria-label="Edit">✎</button><button data-a="del" data-k="${x.k}" data-id="${x.id}" aria-label="Delete">🗑</button></div></div>`;
+  }).join('') : '<div class="empty">No entries yet. Tap + Entry to add one.</div>';
+  $('more').hidden = items.length <= lim;
+  renderSummary();
+}
+
+function inRange(d) {
+  if (range === 'all') return true;
+  const t = today();
+  if (range === 'month') return d.slice(0, 7) === t.slice(0, 7);
+  const n = new Date(t + 'T00:00'); n.setDate(n.getDate() - (n.getDay() + 6) % 7);
+  return d >= ds(n) && d <= t;
+}
+
+function renderSummary() {
+  const out = entries.filter(e => e.type === 'out' && inRange(e.entry_date));
+  const inc = entries.filter(e => e.type === 'in' && inRange(e.entry_date)).reduce((s, e) => s + +e.amount, 0);
+  const by = {}; let tot = 0;
+  out.forEach(e => { const c = e.category || 'Uncategorised'; by[c] = (by[c] || 0) + +e.amount; tot += +e.amount; });
+  const rows = Object.entries(by).sort((a, b) => b[1] - a[1]);
+  if (!rows.length) { $('sum').innerHTML = `<div class="empty">No expenses in this period.</div>`; return; }
+  let acc = 0;
+  const grad = rows.map(([, v], i) => { const s = acc / tot * 100; acc += v; return `${COLORS[i % COLORS.length]} ${s}% ${acc / tot * 100}%`; }).join(',');
+  $('sum').innerHTML = `<div class="two"><div class="box"><small>Spent</small><b style="color:var(--out)">${fmt(tot)}</b></div><div class="box"><small>Received</small><b style="color:var(--in)">${fmt(inc)}</b></div></div>
+    <div class="pie" style="background:conic-gradient(${grad})"></div>` +
+    rows.map(([c, v], i) => `<div class="leg"><i style="background:${COLORS[i % COLORS.length]}"></i><span>${esc(c)}</span><b>${fmt(v)}</b><small style="color:var(--mu);width:44px;text-align:right">${(v / tot * 100).toFixed(0)}%</small></div>`).join('');
+}
+
+function fillCats(sel) {
+  $('f-cat').innerHTML = cats.map(c => `<option>${esc(c.name)}</option>`).join('') + '<option value="__new">+ New category…</option>';
+  if (sel && !cats.some(c => c.name === sel)) $('f-cat').insertAdjacentHTML('afterbegin', `<option>${esc(sel)}</option>`);
+  if (sel) $('f-cat').value = sel;
+}
+const syncType = () => $('catw').hidden = $('f-type').value === 'in';
+
+function openEntry(x) {
+  editing = x ? {k: 'e', id: x.id} : null;
+  $('et').textContent = x ? 'Edit entry' : 'Add entry';
+  $('f-type').value = x ? x.type : 'out'; $('f-mode').value = x ? x.mode : 'cash';
+  $('f-amt').value = x ? x.amount : ''; $('f-date').value = x ? x.entry_date : today(); $('f-note').value = x ? x.note || '' : '';
+  fillCats(x && x.category); syncType(); $('ed').showModal();
+}
+function openKeeper(x) {
+  editing = x ? {k: 'm', id: x.id} : null;
+  $('kt').textContent = x ? 'Edit keeper move' : 'Keeper';
+  $('k-dir').value = x ? x.direction : 'to_keeper'; $('k-amt').value = x ? x.amount : '';
+  $('k-date').value = x ? x.move_date : today(); $('k-note').value = x ? x.note || '' : '';
+  $('kd').showModal();
+}
+
+async function save(table, row) {
+  const q = editing ? sb.from(table).update(row).eq('id', editing.id) : sb.from(table).insert(row);
+  const {error} = await q;
+  if (error) return alert(error.message);
+  document.querySelectorAll('dialog').forEach(d => d.close());
+  load();
+}
+
+$('f-type').onchange = syncType;
+$('f-cat').onchange = async () => {
+  if ($('f-cat').value !== '__new') return;
+  const name = (prompt('New category name') || '').trim();
+  if (!name) return fillCats();
+  const {error} = await sb.from('categories').insert({name});
+  if (error && !/duplicate/i.test(error.message)) alert(error.message);
+  cats = await all('categories', 'name'); fillCats(name);
+};
+$('ef').onsubmit = e => {
+  e.preventDefault();
+  const type = $('f-type').value;
+  save('entries', {type, amount: $('f-amt').value, mode: $('f-mode').value, category: type === 'out' ? $('f-cat').value : null, note: $('f-note').value.trim() || null, entry_date: $('f-date').value});
+};
+$('kf').onsubmit = e => {
+  e.preventDefault();
+  save('keeper_moves', {direction: $('k-dir').value, amount: $('k-amt').value, move_date: $('k-date').value, note: $('k-note').value.trim() || null});
+};
+$('list').onclick = async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const {a, k, id} = b.dataset;
+  const src = k === 'e' ? entries : moves, x = src.find(r => r.id === id);
+  if (a === 'edit') return k === 'e' ? openEntry(x) : openKeeper(x);
+  if (!confirm('Delete this record?')) return;
+  const {error} = await sb.from(k === 'e' ? 'entries' : 'keeper_moves').delete().eq('id', id);
+  if (error) alert(error.message); else load();
+};
+$('add').onclick = () => openEntry(); $('kp').onclick = () => openKeeper();
+$('more').onclick = () => { lim += 50; render(); };
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
+document.querySelectorAll('.tabs:not(#rng) button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs:not(#rng) button').forEach(x => x.classList.toggle('on', x === b));
+  $('v1').hidden = b.dataset.v !== 'v1'; $('v2').hidden = b.dataset.v !== 'v2';
+});
+document.querySelectorAll('#rng button').forEach(b => b.onclick = () => {
+  range = b.dataset.r;
+  document.querySelectorAll('#rng button').forEach(x => x.classList.toggle('on', x === b));
+  renderSummary();
+});
+
+function show(session) {
+  $('login').hidden = !!session; $('app').hidden = !session; $('fab').hidden = !session;
+  if (session) load();
+}
+$('go').onclick = async () => {
+  const {error} = await sb.auth.signInWithPassword({email: $('em').value, password: $('pw').value});
+  if (error) alert(error.message);
+};
+$('out').onclick = () => sb.auth.signOut();
+sb.auth.onAuthStateChange((_, s) => show(s));
+sb.auth.getSession().then(({data}) => show(data.session));
+</script>
+</body></html>
